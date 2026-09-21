@@ -208,6 +208,23 @@ The Homebrew step needs a personal access token with `Contents: read and write`
 on the tap, stored as the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret. Without
 it the release still succeeds and skips the formula.
 
+## Counting installs
+
+The binary has no telemetry, by design. What exists is aggregate and already
+yours:
+
+- **Release downloads.** GitHub counts every release asset download and shows
+  the number on each release page; `make stats` prints the totals across
+  releases. The Homebrew formula downloads these same tarballs, so its installs
+  are already inside the GitHub count — never add the two together.
+- **Clones and views.** Repository → Insights → Traffic, which covers the last
+  14 days. The API that `make stats` uses reports the same numbers and needs
+  push access.
+- **Homebrew analytics.** Third-party taps get no public per-formula numbers,
+  so there is nothing to read beyond the GitHub counts above.
+- **`go install`.** Unmeasured; treat it as unknown rather than inventing a
+  number.
+
 ## Licence
 
 By contributing you agree your work is licensed under the MIT licence, and that

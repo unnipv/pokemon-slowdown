@@ -5,7 +5,7 @@
 BINARY := slowdown
 PKG    := ./cmd/slowdown
 
-.PHONY: help build run test race vet fmt lint check live snapshot clean doctor
+.PHONY: help build run test race vet fmt lint check live snapshot stats clean doctor
 
 help:
 	@echo "build     build ./$(BINARY)"
@@ -18,6 +18,7 @@ help:
 	@echo "check     fmt check, vet, lint and test"
 	@echo "live      opt-in tests against the real server and sprite server"
 	@echo "snapshot  build release archives locally with goreleaser"
+	@echo "stats     print install and traffic counts (needs gh)"
 	@echo "doctor    print terminal diagnostics"
 	@echo "clean     remove build output"
 
@@ -60,6 +61,9 @@ snapshot:
 
 doctor: build
 	./$(BINARY) doctor
+
+stats:
+	./scripts/stats.sh
 
 clean:
 	rm -f $(BINARY)
