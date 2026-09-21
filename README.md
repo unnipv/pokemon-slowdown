@@ -1,5 +1,9 @@
 # pokemon slowdown
 
+[![Latest release](https://img.shields.io/github/v/release/unnipv/pokemon-slowdown?style=flat-square)](https://github.com/unnipv/pokemon-slowdown/releases)
+[![Downloads](https://img.shields.io/github/downloads/unnipv/pokemon-slowdown/total?style=flat-square)](https://github.com/unnipv/pokemon-slowdown/releases)
+[![Stars](https://img.shields.io/github/stars/unnipv/pokemon-slowdown?style=flat-square)](https://github.com/unnipv/pokemon-slowdown/stargazers)
+
 A terminal client (TUI) for [Pokémon Showdown](https://pokemonshowdown.com),
 written in Go. It plays ladder and challenge battles — Random Battle, singles
 and doubles — from the terminal, without a browser.
