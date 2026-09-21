@@ -324,10 +324,11 @@ func (bv *battleView) handleKey(msg tea.KeyPressMsg, m *Model) (tea.Cmd, bool) {
 	}
 
 	// A choice is in flight. Block the keys that would submit another one so
-	// the user cannot double-send; view-only keys still work.
+	// the user cannot double-send; view-only keys still work, and q must fall
+	// through so the app can still raise its quit prompt.
 	if bv.waiting {
 		switch key {
-		case "l", "c", "i", "tab", "?", "esc":
+		case "l", "c", "i", "tab", "?", "esc", "q":
 		default:
 			return nil, true
 		}
@@ -592,7 +593,7 @@ func (bv *battleView) choiceNote(req *battle.Request, slots []battle.ChoiceSlot)
 		case "move":
 			name := fmt.Sprintf("move %d", sl.Move)
 			if ar := req.ActiveAt(i); ar != nil && sl.Move >= 1 && sl.Move <= len(ar.Moves) {
-				name = ar.Moves[sl.Move-1].Move
+				name = SanitizeLine(ar.Moves[sl.Move-1].Move)
 			}
 			if sl.Mechanic != "" {
 				name += " (" + sl.Mechanic + ")"

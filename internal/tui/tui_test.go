@@ -734,6 +734,11 @@ func TestChoiceShowsWaitingFeedback(t *testing.T) {
 		t.Errorf("a choice key opened an overlay while waiting: %v", bv.overlay)
 	}
 
+	// Quitting stays reachable: q passes through to the app's quit prompt.
+	if _, handled := bv.handleKey(keyMsg("q"), m); handled {
+		t.Error("q should pass through to the quit prompt while waiting")
+	}
+
 	// The next turn clears the indicator.
 	bv.apply(showdown.BattleTurn{Base: showdown.Base{RoomID: bv.room}, Turn: 5})
 	if bv.waiting {
