@@ -604,6 +604,70 @@ func TestInspectOverlayFitsOnScreen(t *testing.T) {
 	}
 }
 
+// TestInspectCoversTheWholeParty guards that every party member — including
+// benched ones — can be inspected, and that inspecting from the switch overlay
+// returns to it afterwards.
+func TestInspectCoversTheWholeParty(t *testing.T) {
+	m := testModel(t, config.Default())
+	feedFixtureUntilTurn(t, m, "gen9-singles.txt", 4)
+	bv := m.activeBattle()
+	if bv == nil {
+		t.Fatal("no battle")
+	}
+	side := bv.state().MySide()
+	if side == nil {
+		t.Fatal("no side")
+	}
+
+	// Every party member is reachable by cycling the inspect overlay.
+	seen := map[*battle.Pokemon]bool{}
+	for _, p := range bv.inspectables() {
+		seen[p] = true
+	}
+	for _, p := range side.Party {
+		if !seen[p] {
+			t.Errorf("%s is missing from the inspect cycle", p.Name)
+		}
+	}
+
+	// Inspecting from the switch overlay opens the highlighted member and
+	// returns there on esc.
+	bv.overlay = overlaySwitch
+	bv.overlayCursor = 2
+	want := bv.switchOptions()[2].Pokemon
+	bv.handleOverlayKey("i", m)
+	if bv.overlay != overlayInspect {
+		t.Fatalf("i in the switch overlay should open inspect, got %v", bv.overlay)
+	}
+	if got := bv.inspectables()[bv.inspectIndex]; got != want {
+		t.Errorf("inspect opened on %s, want %s", got.Name, want.Name)
+	}
+	if out := stripANSI(bv.render(m.width, m.height-2, m.layout)); !strings.Contains(out, want.Name) {
+		t.Errorf("inspect overlay did not render %s", want.Name)
+	}
+	bv.handleOverlayKey("esc", m)
+	if bv.overlay != overlaySwitch {
+		t.Errorf("esc should return to the switch overlay, got %v", bv.overlay)
+	}
+
+	// A benched Pokémon still shows its moveset, taken from the request.
+	var bench *battle.Pokemon
+	for _, p := range side.Party {
+		if !p.Active && len(p.MoveIDs) > 0 {
+			bench = p
+			break
+		}
+	}
+	if bench == nil {
+		t.Fatal("no benched Pokémon with a known moveset")
+	}
+	bv.inspectPokemon(bench, overlayNone)
+	out := stripANSI(bv.render(m.width, m.height-2, m.layout))
+	if !strings.Contains(out, bv.moveName(bench.MoveIDs[0])) {
+		t.Errorf("benched moveset not shown for %s", bench.Name)
+	}
+}
+
 // TestEverySizeFitsAndKeepsTheStatusLine guards the bottom line. The status bar
 // is rendered last, so it is the first thing lost when the view overflows: an
 // over-tall view gets clipped by Bubble Tea and the keyboard hints disappear.

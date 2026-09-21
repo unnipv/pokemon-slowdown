@@ -80,6 +80,10 @@ type battleView struct {
 	timerSeenAt time.Time
 	// inspectIndex selects which Pokémon the inspect overlay shows.
 	inspectIndex int
+	// inspectBack is the overlay to return to when inspect closes. It is
+	// overlaySwitch when inspect was opened from the switch overlay, so the
+	// user lands back on the party list with their cursor intact.
+	inspectBack overlayKind
 }
 
 func newBattleView(room string, owner *Model) *battleView {
@@ -335,7 +339,7 @@ func (bv *battleView) handleKey(msg tea.KeyPressMsg, m *Model) (tea.Cmd, bool) {
 		bv.overlay = overlayChat
 		return nil, true
 	case "i":
-		bv.overlay = overlayInspect
+		bv.inspectPokemon(nil, overlayNone)
 		return nil, true
 	case "s":
 		if bv.canSwitch() {
@@ -583,6 +587,12 @@ func (bv *battleView) handleOverlayKey(key string, m *Model) tea.Cmd {
 				bv.overlay = overlayNone
 				return cmd
 			}
+		case "i":
+			// Inspect the highlighted party member without leaving the
+			// switch list; esc in inspect comes back here.
+			if bv.overlayCursor < len(slots) {
+				bv.inspectPokemon(slots[bv.overlayCursor].Pokemon, overlaySwitch)
+			}
 		default:
 			if d := digit(key); d > 0 {
 				for _, sl := range slots {
@@ -632,7 +642,9 @@ func (bv *battleView) handleOverlayKey(key string, m *Model) tea.Cmd {
 	case overlayInspect:
 		switch key {
 		case "esc", "i":
-			bv.overlay = overlayNone
+			back := bv.inspectBack
+			bv.inspectBack = overlayNone
+			bv.overlay = back
 		case "up", "k", "left":
 			bv.inspectIndex--
 			if bv.inspectIndex < 0 {

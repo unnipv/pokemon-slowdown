@@ -8,6 +8,12 @@ and doubles — from the terminal, without a browser.
 - Platforms: macOS, Linux, Windows (amd64 and arm64)
 - Protocol: the documented Showdown websocket protocol
 
+## Demo
+
+A short demo of a battle from the terminal.
+
+![pokemon-slowdown demo](docs/pokemon-slowdown.gif)
+
 ## Screenshots
 
 From a real session, Ghostty, half-block sprite backend.
@@ -92,9 +98,9 @@ Server behaviour, verified against the live service:
 | Key | Action |
 | --- | --- |
 | `1`–`4` | choose a move |
-| `s` | switch (then `1`–`6`, or arrows and enter) |
+| `s` | switch (then `1`–`6`, or arrows and enter); `i` inspects the highlighted one |
 | `t` | use the current mechanic: Tera, Mega, Z-Move or Dynamax |
-| `i` | inspect a Pokémon; `↑`/`↓` cycles between both sides |
+| `i` | inspect a Pokémon; `↑`/`↓` cycles both sides and your party |
 | `l` | full battle log |
 | `c` | battle chat |
 | `tab` | switch between battles still in progress |

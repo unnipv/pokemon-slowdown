@@ -554,6 +554,9 @@ func applySwitchRequest(p *Pokemon, sp PokemonSwitchRequest) {
 	p.Item = sp.Item
 	p.Ability = sp.Ability
 	p.BaseAbility = sp.BaseAbility
+	if len(sp.Moves) > 0 {
+		p.MoveIDs = sp.Moves
+	}
 	if len(sp.Stats) > 0 {
 		p.Stats = sp.Stats
 	}

@@ -588,7 +588,7 @@ func (m *Model) renderHelp() string {
 		"  1-4        choose a move",
 		"  s          switch (then 1-6, or a name)",
 		"  t          use the current mechanic (Tera/Mega/Z/Dynamax)",
-		"  i          inspect the selected Pokémon",
+		"  i          inspect a Pokémon (↑/↓ cycles both sides and your party)",
 		"  l          battle log",
 		"  c          battle chat",
 		"  tab        switch between open battles",

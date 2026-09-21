@@ -106,6 +106,11 @@ type Pokemon struct {
 	// SeenMoves records moves this Pokémon has actually used. For the opponent
 	// this is the only legitimate source of move information.
 	SeenMoves []string
+	// MoveIDs is the team's known move IDs from a choice request. The server
+	// lists every party member's moves this way, but only the active Pokémon
+	// get PP and display names; MoveIDs lets the inspect overlay show a bench
+	// Pokémon's moveset too.
+	MoveIDs []string
 
 	Boosts    map[string]int
 	Volatiles map[string]bool

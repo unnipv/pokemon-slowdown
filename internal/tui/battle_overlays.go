@@ -168,17 +168,54 @@ func (bv *battleView) renderSwitchOverlay(width int) string {
 		}
 		body = append(body, line)
 	}
+	body = append(body, "", t.Dim.Render("enter choose  ·  i inspect"))
 	return bv.overlayFrame("Switch", width, body)
 }
 
 // inspectables returns the Pokémon the inspect overlay cycles through: the
-// opponent's active Pokémon first, then ours.
+// opponent's active Pokémon first, then ours — the active ones, followed by
+// the rest of the party so every team member can be examined.
 func (bv *battleView) inspectables() []*battle.Pokemon {
 	s := bv.state()
 	var out []*battle.Pokemon
 	out = append(out, activeOf(s.Opponent())...)
 	out = append(out, activeOf(s.MySide())...)
+	out = append(out, benchOf(s.MySide())...)
 	return out
+}
+
+// benchOf returns a side's non-active party members in party order, including
+// fainted ones: the inspect overlay shows the whole team, not only what can
+// still fight.
+func benchOf(side *battle.Side) []*battle.Pokemon {
+	if side == nil {
+		return nil
+	}
+	var out []*battle.Pokemon
+	for _, p := range side.Party {
+		if !p.Active {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// inspectPokemon opens the inspect overlay. A nil Pokémon keeps the current
+// selection; otherwise the overlay jumps to that Pokémon. back is the overlay
+// to restore when inspect closes (overlayNone for the global inspect key).
+func (bv *battleView) inspectPokemon(p *battle.Pokemon, back overlayKind) {
+	bv.inspectBack = back
+	bv.overlay = overlayInspect
+	if p == nil {
+		return
+	}
+	for i, q := range bv.inspectables() {
+		if q == p {
+			bv.inspectIndex = i
+			return
+		}
+	}
+	bv.inspectIndex = 0
 }
 
 func (bv *battleView) renderInspectOverlay(width int) string {
@@ -232,15 +269,24 @@ func (bv *battleView) renderInspectOverlay(width int) string {
 
 	if mine {
 		body = append(body, t.Muted.Render("Moves"))
-		if len(p.Moves) == 0 {
-			body = append(body, t.Dim.Render("  (not yet known)"))
-		}
-		for _, mv := range p.Moves {
-			line := fmt.Sprintf("  %-18s %d/%d", mv.Name, mv.PP, mv.MaxPP)
-			if mv.Disabled {
-				line = t.Disabled.Render(line + "  disabled")
+		switch {
+		case len(p.Moves) > 0:
+			for _, mv := range p.Moves {
+				line := fmt.Sprintf("  %-18s %d/%d", mv.Name, mv.PP, mv.MaxPP)
+				if mv.Disabled {
+					line = t.Disabled.Render(line + "  disabled")
+				}
+				body = append(body, line)
 			}
-			body = append(body, line)
+		case len(p.MoveIDs) > 0:
+			// A benched Pokémon has a known moveset but no PP yet, because the
+			// server only reports PP for the active slot.
+			for _, id := range p.MoveIDs {
+				body = append(body, "  "+bv.moveName(id))
+			}
+			body = append(body, t.Dim.Render("  PP shown while active"))
+		default:
+			body = append(body, t.Dim.Render("  (not yet known)"))
 		}
 	} else {
 		body = append(body, t.Muted.Render(fmt.Sprintf("Revealed moves (%d)", len(p.SeenMoves))))
@@ -330,6 +376,17 @@ func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 func (bv *battleView) isMine(p *battle.Pokemon) bool {
 	s := bv.state()
 	return s.Me != "" && p.SideID == s.Me
+}
+
+// moveName resolves a move ID to its display name, falling back to the raw ID
+// when the dex is not available.
+func (bv *battleView) moveName(id string) string {
+	if bv.deps.Dex != nil {
+		if m, ok := bv.deps.Dex.Move(id); ok && m.Name != "" {
+			return m.Name
+		}
+	}
+	return id
 }
 
 func (bv *battleView) renderLogOverlay(width, height int) string {
