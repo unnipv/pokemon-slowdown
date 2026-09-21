@@ -427,6 +427,32 @@ func BoostMultiplier(stage int) float64 {
 	return 2 / float64(2-stage)
 }
 
+// StatRange returns the minimum and maximum possible value of a stat for a
+// species at a level, matching Pokémon Showdown's foe tooltip. The minimum
+// assumes 0 IVs and 0 EVs with a hindering nature; the maximum assumes 31 IVs
+// and 252 EVs with a beneficial nature. HP ignores nature. Random-battle
+// formats use neutral natures, so pass random to drop the 0.9/1.1 multipliers.
+func StatRange(base, level int, hp, random bool) (int, int) {
+	if base <= 0 {
+		return 0, 0
+	}
+	if level <= 0 {
+		level = 100
+	}
+	if hp {
+		min := 2*base*level/100 + level + 10
+		max := (2*base+94)*level/100 + level + 10
+		return min, max
+	}
+	minNature, maxNature := 0.9, 1.1
+	if random {
+		minNature, maxNature = 1, 1
+	}
+	min := int(float64(2*base*level/100+5) * minNature)
+	max := int(float64((2*base+94)*level/100+5) * maxNature)
+	return min, max
+}
+
 // StatKeys is the canonical stat order for display.
 var StatKeys = []string{"hp", "atk", "def", "spa", "spd", "spe"}
 

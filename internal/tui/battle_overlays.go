@@ -258,9 +258,17 @@ func (bv *battleView) renderInspectOverlay(width int) string {
 	}
 	if p.Item != "" {
 		body = append(body, "Item     "+t.Muted.Render(p.Item))
+	} else if !mine {
+		body = append(body, "Item     "+t.Dim.Render("? (not revealed)"))
 	}
 	if p.Ability != "" {
 		body = append(body, "Ability  "+t.Muted.Render(p.Ability))
+	} else if !mine {
+		if poss := bv.possibleAbilities(p.Species); poss != "" {
+			body = append(body, "Ability  "+t.Muted.Render("?")+" ("+poss+")")
+		} else {
+			body = append(body, "Ability  "+t.Dim.Render("? (not revealed)"))
+		}
 	}
 
 	body = append(body, "")
@@ -272,9 +280,12 @@ func (bv *battleView) renderInspectOverlay(width int) string {
 		switch {
 		case len(p.Moves) > 0:
 			for _, mv := range p.Moves {
-				line := fmt.Sprintf("  %-18s %d/%d", mv.Name, mv.PP, mv.MaxPP)
+				line := "  " + padRight(SanitizeLine(mv.Name), 16) + " " + bv.moveDetail(mv.ID)
+				if mv.MaxPP > 0 {
+					line += "  " + t.Muted.Render(fmt.Sprintf("%d/%d", mv.PP, mv.MaxPP))
+				}
 				if mv.Disabled {
-					line = t.Disabled.Render(line + "  disabled")
+					line += "  " + t.Disabled.Render("disabled")
 				}
 				body = append(body, line)
 			}
@@ -282,7 +293,7 @@ func (bv *battleView) renderInspectOverlay(width int) string {
 			// A benched Pokémon has a known moveset but no PP yet, because the
 			// server only reports PP for the active slot.
 			for _, id := range p.MoveIDs {
-				body = append(body, "  "+bv.moveName(id))
+				body = append(body, "  "+padRight(bv.moveName(id), 16)+" "+bv.moveDetail(id))
 			}
 			body = append(body, t.Dim.Render("  PP shown while active"))
 		default:
@@ -303,7 +314,8 @@ func (bv *battleView) renderInspectOverlay(width int) string {
 
 // renderStatTable shows base stats from the dex, the absolute current stats the
 // server reports for our own Pokémon, and the value after in-battle stat
-// changes.
+// changes. For the opponent, whose stats are not revealed, it shows the
+// possible range instead.
 func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 	t := bv.theme
 	var base map[string]int
@@ -311,6 +323,9 @@ func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 		if sp, ok := bv.deps.Dex.Species(p.Species); ok {
 			base = sp.BaseStats
 		}
+	}
+	if !mine {
+		return bv.renderFoeStatTable(p, base)
 	}
 
 	head := "  " + padRight("Stat", 8) + " " + padLeft("Base", 5) + " " + padLeft("Actual", 7) + " " + padLeft("In battle", 11)
@@ -329,17 +344,15 @@ func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 		actual := "-"
 		if v, ok := p.Stats[k]; ok {
 			actual = strconv.Itoa(v)
-		} else if mine && k == "hp" && p.MaxHP > 0 {
+		} else if k == "hp" && p.MaxHP > 0 {
 			actual = strconv.Itoa(p.MaxHP)
-		} else if !mine {
-			actual = "?"
 		}
 
 		effective := "-"
 		switch {
 		case k == "hp":
 			switch {
-			case mine && p.MaxHP > 0:
+			case p.MaxHP > 0:
 				effective = fmt.Sprintf("%d/%d", p.HP, p.MaxHP)
 			case p.HPPercent > 0:
 				effective = fmt.Sprintf("%d%%", p.HPPercent)
@@ -357,9 +370,6 @@ func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 			} else {
 				effective = t.Muted.Render(strconv.Itoa(v))
 			}
-		case !mine:
-			// The opponent's stats are not revealed; only public base stats are.
-			effective = t.Dim.Render("?")
 		}
 
 		// Pad by display width, not byte length: styled values carry escape
@@ -367,9 +377,34 @@ func (bv *battleView) renderStatTable(p *battle.Pokemon, mine bool) []string {
 		out = append(out, "  "+padRight(label, 8)+" "+
 			padLeft(baseVal, 5)+" "+padLeft(actual, 7)+" "+padLeft(effective, 11))
 	}
-	if !mine {
-		out = append(out, "", t.Dim.Render("  Opponent stats are not revealed."))
+	return out
+}
+
+// renderFoeStatTable shows the possible range of each stat for an opponent,
+// whose actual values are not revealed. The range matches Showdown's tooltip:
+// minimum and maximum investment at the Pokémon's level, before items,
+// abilities and boosts.
+func (bv *battleView) renderFoeStatTable(p *battle.Pokemon, base map[string]int) []string {
+	t := bv.theme
+	random := strings.Contains(bv.state().Tier, "Random")
+	head := "  " + padRight("Stat", 8) + " " + padLeft("Base", 5) + " " + padLeft("Min", 5) + " " + padLeft("Max", 5)
+	out := []string{t.Muted.Render(head)}
+
+	for _, k := range battle.StatKeys {
+		label := battle.StatLabels[k]
+		if label == "" {
+			label = k
+		}
+		baseVal, minVal, maxVal := "-", "-", "-"
+		if v, ok := base[k]; ok {
+			baseVal = strconv.Itoa(v)
+			lo, hi := battle.StatRange(v, p.Level, k == "hp", random)
+			minVal, maxVal = strconv.Itoa(lo), strconv.Itoa(hi)
+		}
+		out = append(out, "  "+padRight(label, 8)+" "+
+			padLeft(baseVal, 5)+" "+padLeft(minVal, 5)+" "+padLeft(maxVal, 5))
 	}
+	out = append(out, "", t.Dim.Render("  Possible range, before items, abilities and boosts."))
 	return out
 }
 
@@ -387,6 +422,54 @@ func (bv *battleView) moveName(id string) string {
 		}
 	}
 	return id
+}
+
+// moveDetail renders a move's type, damage class and base power, so a moveset
+// shows more than a name and PP.
+func (bv *battleView) moveDetail(id string) string {
+	if bv.deps.Dex == nil {
+		return ""
+	}
+	m, ok := bv.deps.Dex.Move(id)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	if m.Type != "" {
+		parts = append(parts, bv.typeBadge(m.Type))
+	}
+	switch strings.ToLower(m.Category) {
+	case "physical":
+		parts = append(parts, bv.theme.Warning.Render("Phys"))
+	case "special":
+		parts = append(parts, bv.theme.Primary.Render("Spec"))
+	default:
+		parts = append(parts, bv.theme.Muted.Render("Status"))
+	}
+	if m.BasePower > 0 {
+		parts = append(parts, bv.theme.Muted.Render(strconv.Itoa(m.BasePower)))
+	}
+	return strings.Join(parts, " ")
+}
+
+// possibleAbilities lists a species' abilities from the dex, for a foe whose
+// ability has not been revealed. The map is keyed "0"/"1"/"H"; normal
+// abilities are listed before the hidden one.
+func (bv *battleView) possibleAbilities(species string) string {
+	if bv.deps.Dex == nil || species == "" {
+		return ""
+	}
+	sp, ok := bv.deps.Dex.Species(species)
+	if !ok || len(sp.Abilities) == 0 {
+		return ""
+	}
+	var out []string
+	for _, key := range []string{"0", "1", "H", "S"} {
+		if a, ok := sp.Abilities[key]; ok && a != "" {
+			out = append(out, a)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 func (bv *battleView) renderLogOverlay(width, height int) string {

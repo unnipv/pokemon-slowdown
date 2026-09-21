@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -84,6 +85,12 @@ type battleView struct {
 	// overlaySwitch when inspect was opened from the switch overlay, so the
 	// user lands back on the party list with their cursor intact.
 	inspectBack overlayKind
+
+	// waiting is true after a choice has been sent and before the server
+	// responds. It is what tells the user the input was received, rather than
+	// the UI being stuck.
+	waiting  bool
+	waitNote string
 }
 
 func newBattleView(room string, owner *Model) *battleView {
@@ -119,6 +126,12 @@ func (bv *battleView) wonByMe(s *battle.State) bool {
 
 func (bv *battleView) state() *battle.State { return bv.reducer.State }
 
+// clearWaiting drops the "choice sent" indicator once the server has responded.
+func (bv *battleView) clearWaiting() {
+	bv.waiting = false
+	bv.waitNote = ""
+}
+
 func (bv *battleView) apply(ev showdown.Event) {
 	bv.reducer.Debug = bv.deps.Debug
 	if title, ok := ev.(showdown.RoomTitle); ok {
@@ -132,6 +145,14 @@ func (bv *battleView) apply(ev showdown.Event) {
 		bv.slot = 0
 		bv.overlay = overlayNone
 		bv.overlayCursor = 0
+		bv.clearWaiting()
+	}
+	// Any of these means the turn has moved on, so the choice is no longer
+	// pending. Waiting only needs to survive until the server acknowledges it.
+	switch ev.(type) {
+	case showdown.BattleTurn, showdown.BattleMove, showdown.BattleSwitch,
+		showdown.BattleWin, showdown.BattleTie, showdown.BattleError:
+		bv.clearWaiting()
 	}
 	if e, ok := ev.(showdown.BattleError); ok {
 		bv.lastError = SanitizeLine(e.Message)
@@ -300,6 +321,16 @@ func (bv *battleView) handleKey(msg tea.KeyPressMsg, m *Model) (tea.Cmd, bool) {
 	// Team preview takes priority: it is a different interaction entirely.
 	if s.TeamPreview {
 		return bv.handlePreviewKey(key, m), true
+	}
+
+	// A choice is in flight. Block the keys that would submit another one so
+	// the user cannot double-send; view-only keys still work.
+	if bv.waiting {
+		switch key {
+		case "l", "c", "i", "tab", "?", "esc":
+		default:
+			return nil, true
+		}
 	}
 
 	// After a battle, enter queues the same format again. That is the "next
@@ -520,7 +551,9 @@ func (bv *battleView) commitSwitch(partySlot int) tea.Cmd {
 	}
 	if req.Kind() == battle.RequestSwitch {
 		// Forced switch: one decision, submit immediately.
-		return bv.sendChoice(battle.Choice{Slots: []battle.ChoiceSlot{{Kind: "switch", Switch: partySlot}}})
+		return bv.sendChoice(
+			battle.Choice{Slots: []battle.ChoiceSlot{{Kind: "switch", Switch: partySlot}}},
+			bv.switchNote(partySlot))
 	}
 	bv.draft[bv.slot] = battle.ChoiceSlot{Kind: "switch", Switch: partySlot}
 	return bv.maybeSubmit()
@@ -547,10 +580,42 @@ func (bv *battleView) maybeSubmit() tea.Cmd {
 		}
 		slots = append(slots, slot)
 	}
-	return bv.sendChoice(battle.Choice{Slots: slots})
+	return bv.sendChoice(battle.Choice{Slots: slots}, bv.choiceNote(req, slots))
 }
 
-func (bv *battleView) sendChoice(choice battle.Choice) tea.Cmd {
+// choiceNote describes a completed choice in human terms, for the "waiting for
+// the opponent" indicator.
+func (bv *battleView) choiceNote(req *battle.Request, slots []battle.ChoiceSlot) string {
+	var parts []string
+	for i, sl := range slots {
+		switch sl.Kind {
+		case "move":
+			name := fmt.Sprintf("move %d", sl.Move)
+			if ar := req.ActiveAt(i); ar != nil && sl.Move >= 1 && sl.Move <= len(ar.Moves) {
+				name = ar.Moves[sl.Move-1].Move
+			}
+			if sl.Mechanic != "" {
+				name += " (" + sl.Mechanic + ")"
+			}
+			parts = append(parts, name)
+		case "switch":
+			parts = append(parts, bv.switchNote(sl.Switch))
+		case "pass":
+			parts = append(parts, "pass")
+		}
+	}
+	return strings.Join(parts, " + ")
+}
+
+// switchNote names the party member a switch choice refers to.
+func (bv *battleView) switchNote(partySlot int) string {
+	if side := bv.state().MySide(); side != nil && partySlot >= 1 && partySlot <= len(side.Party) {
+		return "switch to " + SanitizeLine(side.Party[partySlot-1].Name)
+	}
+	return fmt.Sprintf("switch %d", partySlot)
+}
+
+func (bv *battleView) sendChoice(choice battle.Choice, note string) tea.Cmd {
 	s := bv.state()
 	if bv.deps.Client == nil {
 		return nil
@@ -562,6 +627,9 @@ func (bv *battleView) sendChoice(choice battle.Choice) tea.Cmd {
 	text := choice.String()
 	bv.draft = map[int]battle.ChoiceSlot{}
 	bv.slot = 0
+	// Show that the choice landed; it clears when the server responds.
+	bv.waiting = true
+	bv.waitNote = note
 	return func() tea.Msg {
 		_ = bv.deps.Client.Choose(bv.room, text, rqid)
 		return nil

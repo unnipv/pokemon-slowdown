@@ -673,6 +673,18 @@ func (bv *battleView) renderMoves(width int, layout LayoutMode) []string {
 		out = append(out, bv.renderMoveLine(i+1, mv, width, nameW, layout))
 	}
 
+	// A submitted choice that needs no further input would otherwise leave the
+	// screen unchanged, which reads as a freeze. Say what happened and wait.
+	if bv.waiting {
+		note := bv.waitNote
+		if note == "" {
+			note = "choice sent"
+		}
+		out = append(out, "", "  "+t.Success.Bold(true).Render("✓ "+note)+" "+
+			t.Muted.Render("— waiting for the opponent…"))
+		return out
+	}
+
 	var hints []string
 	if ch, ok := bv.draft[bv.slot]; ok {
 		hints = append(hints, t.Success.Render("chosen: "+ch.String()))
@@ -710,7 +722,7 @@ func (bv *battleView) renderMoveLine(n int, mv battle.MoveRequest, width, nameW 
 	label := truncate(mv.Move, nameW)
 	var styled string
 	switch {
-	case mv.Disabled.Set:
+	case mv.Disabled.Set || bv.waiting:
 		styled = t.Disabled.Render(label)
 	default:
 		if st, ok := t.TypesFg[strings.ToLower(typ)]; ok {
@@ -724,14 +736,48 @@ func (bv *battleView) renderMoveLine(n int, mv battle.MoveRequest, width, nameW 
 	left := fmt.Sprintf("  %s %s", key, name)
 	if layout != LayoutCompact {
 		left += " " + bv.typeBadge(typ)
+		// Category and base power need room; drop them before the type badge.
+		if width >= 64 {
+			if detail := bv.moveClass(mv.ID); detail != "" {
+				left += " " + detail
+			}
+		}
 	}
 
 	pp := bv.ppText(mv)
+	if bv.waiting {
+		pp = t.Disabled.Render(fmt.Sprintf("%d/%d", mv.PP, mv.MaxPP))
+	}
 	pad := width - lipgloss.Width(left) - lipgloss.Width(pp) - 2
 	if pad < 1 {
 		pad = 1
 	}
 	return left + strings.Repeat(" ", pad) + pp
+}
+
+// moveClass renders a move's damage class and base power from the dex, e.g.
+// "Spec 90" or "Status". It is empty when the dex is unavailable.
+func (bv *battleView) moveClass(id string) string {
+	if bv.deps.Dex == nil {
+		return ""
+	}
+	m, ok := bv.deps.Dex.Move(id)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	switch strings.ToLower(m.Category) {
+	case "physical":
+		parts = append(parts, bv.theme.Warning.Render("Phys"))
+	case "special":
+		parts = append(parts, bv.theme.Primary.Render("Spec"))
+	default:
+		parts = append(parts, bv.theme.Muted.Render("Status"))
+	}
+	if m.BasePower > 0 {
+		parts = append(parts, bv.theme.Muted.Render(strconv.Itoa(m.BasePower)))
+	}
+	return strings.Join(parts, " ")
 }
 
 // typeBadge renders a fixed-width badge so badges line up in a column. The

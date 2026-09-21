@@ -668,6 +668,115 @@ func TestInspectCoversTheWholeParty(t *testing.T) {
 	}
 }
 
+// TestInspectShowsFoePotential guards the opponent panel: since the foe's
+// exact stats, item and ability are hidden, the overlay shows what is possible
+// instead of blank cells.
+func TestInspectShowsFoePotential(t *testing.T) {
+	if _, err := os.Stat(filepath.Join(storage.DexDir(), "pokedex.json")); err != nil {
+		t.Skip("dex cache not present; run `slowdown doctor` once")
+	}
+	d := dex.New(storage.DexDir())
+	if err := d.Ensure(context.Background()); err != nil {
+		t.Skipf("dex unavailable: %v", err)
+	}
+	m := New(config.Default(), Deps{Dex: d, Now: time.Now})
+	m.width, m.height = 100, 44
+	feedFixtureUntilTurn(t, m, "gen9-singles.txt", 4)
+	bv := m.activeBattle()
+	if bv == nil {
+		t.Fatal("no battle")
+	}
+	foe := activeOf(bv.state().Opponent())
+	if len(foe) == 0 {
+		t.Fatal("no opponent active")
+	}
+	bv.inspectPokemon(foe[0], overlayNone)
+	out := stripANSI(bv.render(m.width, m.height-2, m.layout))
+	for _, want := range []string{"Ability", "Item", "Min", "Max"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("foe inspect missing %q:\n%s", want, out)
+		}
+	}
+	if bv.possibleAbilities(foe[0].Species) == "" {
+		t.Errorf("no dex abilities found for %s", foe[0].Species)
+	}
+}
+
+// TestChoiceShowsWaitingFeedback guards that a target-less choice is
+// acknowledged on screen, and that further choice keys are ignored until the
+// server moves the turn on.
+func TestChoiceShowsWaitingFeedback(t *testing.T) {
+	m := testModel(t, config.Default())
+	feedFixtureUntilTurn(t, m, "gen9-singles.txt", 4)
+	bv := m.activeBattle()
+	if bv == nil {
+		t.Fatal("no battle")
+	}
+
+	// A sent choice is described in the move area.
+	bv.waiting = true
+	bv.waitNote = "Shadow Ball"
+	out := stripANSI(bv.render(m.width, m.height-2, m.layout))
+	if !strings.Contains(out, "waiting for the opponent") {
+		t.Errorf("no waiting feedback:\n%s", out)
+	}
+	if !strings.Contains(out, "Shadow Ball") {
+		t.Errorf("chosen move is not named:\n%s", out)
+	}
+
+	// Choice keys are consumed and do nothing while waiting.
+	for _, k := range []string{"1", "s", "t"} {
+		if _, handled := bv.handleKey(keyMsg(k), m); !handled {
+			t.Errorf("key %q should be consumed while waiting", k)
+		}
+	}
+	if bv.overlay != overlayNone {
+		t.Errorf("a choice key opened an overlay while waiting: %v", bv.overlay)
+	}
+
+	// The next turn clears the indicator.
+	bv.apply(showdown.BattleTurn{Base: showdown.Base{RoomID: bv.room}, Turn: 5})
+	if bv.waiting {
+		t.Error("waiting should clear on the next turn")
+	}
+}
+
+// TestChoiceNoteNamesTheMove checks the human-readable note built for the
+// waiting indicator.
+func TestChoiceNoteNamesTheMove(t *testing.T) {
+	m := testModel(t, config.Default())
+	feedFixtureUntilTurn(t, m, "gen9-singles.txt", 4)
+	bv := m.activeBattle()
+	req := bv.state().Request
+	if req == nil {
+		t.Fatal("no request")
+	}
+	note := bv.choiceNote(req, []battle.ChoiceSlot{{Kind: "move", Move: 1}})
+	if !strings.Contains(note, "Shadow Ball") {
+		t.Errorf("choice note = %q, want the move name", note)
+	}
+}
+
+// TestMoveClassShowsCategoryAndPower checks the extra moveset detail.
+func TestMoveClassShowsCategoryAndPower(t *testing.T) {
+	if _, err := os.Stat(filepath.Join(storage.DexDir(), "moves.json")); err != nil {
+		t.Skip("dex cache not present; run `slowdown doctor` once")
+	}
+	d := dex.New(storage.DexDir())
+	if err := d.Ensure(context.Background()); err != nil {
+		t.Skipf("dex unavailable: %v", err)
+	}
+	m := New(config.Default(), Deps{Dex: d, Now: time.Now})
+	bv := m.battleFor("battle-x")
+
+	if got := stripANSI(bv.moveClass("shadowball")); !strings.Contains(got, "Spec") || !strings.Contains(got, "80") {
+		t.Errorf("shadowball class = %q, want Spec 80", got)
+	}
+	if got := stripANSI(bv.moveClass("nastyplot")); !strings.Contains(got, "Status") {
+		t.Errorf("nastyplot class = %q, want Status", got)
+	}
+}
+
 // TestEverySizeFitsAndKeepsTheStatusLine guards the bottom line. The status bar
 // is rendered last, so it is the first thing lost when the view overflows: an
 // over-tall view gets clipped by Bubble Tea and the keyboard hints disappear.
