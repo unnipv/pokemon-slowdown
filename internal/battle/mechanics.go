@@ -3,7 +3,7 @@ package battle
 // Mechanic is a generation-specific battle mechanic exposed by a request.
 type Mechanic struct {
 	// Kind is the protocol token appended to a move choice: "mega",
-	// "ultraburst", "zmove", "max" or "terastalize".
+	// "ultra", "zmove", "max" or "terastallize".
 	Kind string
 	// Label is a short human label, e.g. "Mega", "Z-Move", "Dynamax", "Tera".
 	Label string
@@ -43,7 +43,7 @@ func AvailableMechanics(ar *PokemonMoveRequest) Mechanics {
 		out = append(out, Mechanic{Kind: "mega", Label: "Mega Y"})
 	}
 	if ar.CanUltraBurst {
-		out = append(out, Mechanic{Kind: "ultraburst", Label: "Ultra Burst"})
+		out = append(out, Mechanic{Kind: "ultra", Label: "Ultra Burst"})
 	}
 	if len(ar.CanZMove) > 0 {
 		out = append(out, Mechanic{Kind: "zmove", Label: "Z-Move"})
@@ -52,7 +52,7 @@ func AvailableMechanics(ar *PokemonMoveRequest) Mechanics {
 		out = append(out, Mechanic{Kind: "max", Label: "Dynamax"})
 	}
 	if ar.CanTerastallize != "" {
-		out = append(out, Mechanic{Kind: "terastalize", Label: "Tera", Detail: ar.CanTerastallize})
+		out = append(out, Mechanic{Kind: "terastallize", Label: "Tera", Detail: ar.CanTerastallize})
 	}
 	return Mechanics{Available: out}
 }
@@ -60,7 +60,7 @@ func AvailableMechanics(ar *PokemonMoveRequest) Mechanics {
 // Primary returns the mechanic a single "use the mechanic" keystroke should
 // apply, preferring the most modern mechanic available.
 func (m Mechanics) Primary() (Mechanic, bool) {
-	for _, kind := range []string{"terastalize", "max", "zmove", "ultraburst", "mega"} {
+	for _, kind := range []string{"terastallize", "max", "zmove", "ultra", "mega"} {
 		if a := m.byKind(kind); a != nil {
 			return *a, true
 		}
