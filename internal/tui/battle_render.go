@@ -348,6 +348,9 @@ func (bv *battleView) renderPokemonInfo(p *battle.Pokemon, width int, foe bool, 
 	if st := bv.statusBadge(p.Status); st != "" {
 		line2 += "  " + st
 	}
+	if sub := bv.substituteBadge(p); sub != "" {
+		line2 += "  " + sub
+	}
 	if boosts := bv.boostParts(p); len(boosts) > 0 {
 		line2 += "  " + strings.Join(boosts, " ")
 	}
@@ -380,6 +383,7 @@ func (bv *battleView) renderMonLine(p *battle.Pokemon, foe bool, width int, layo
 	hpText := bv.hpText(p, foe)
 	types := bv.typeList(p.Species, layout)
 	status := bv.statusBadge(p.Status)
+	sub := bv.substituteBadge(p)
 	boosts := strings.Join(bv.boostParts(p), " ")
 
 	// Compact keeps the types by shortening the name instead of dropping
@@ -392,6 +396,9 @@ func (bv *battleView) renderMonLine(p *battle.Pokemon, foe bool, width int, layo
 		}
 		if status != "" {
 			reserved += lipgloss.Width(status) + 1
+		}
+		if sub != "" {
+			reserved += lipgloss.Width(sub) + 1
 		}
 		avail := width - reserved
 		if avail < 8 {
@@ -420,6 +427,9 @@ func (bv *battleView) renderMonLine(p *battle.Pokemon, foe bool, width int, layo
 	// Extra information, least important last so it is dropped first when the
 	// line does not fit.
 	var extra []string
+	if sub != "" {
+		extra = append(extra, sub)
+	}
 	if status != "" {
 		extra = append(extra, status)
 	}
@@ -474,6 +484,16 @@ func (bv *battleView) statusBadge(status string) string {
 		st = bv.theme.Danger
 	}
 	return st.Render(strings.ToUpper(status))
+}
+
+// substituteBadge marks a Pokémon that is behind a Substitute. The HP bar then
+// shows the Pokémon's own health, not the decoy that is absorbing hits, so the
+// two must not be confused.
+func (bv *battleView) substituteBadge(p *battle.Pokemon) string {
+	if p == nil || !p.HasSubstitute() {
+		return ""
+	}
+	return bv.theme.Accent.Bold(true).Render("SUB")
 }
 
 var statAbbrev = map[string]string{

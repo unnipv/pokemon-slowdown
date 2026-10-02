@@ -140,6 +140,40 @@ func TestRenderRecordedBattle(t *testing.T) {
 	}
 }
 
+func TestSubstituteIsVisibleInFieldAndSprite(t *testing.T) {
+	m := testModel(t, config.Default())
+	// Stop at turn 2, before the move that breaks Mewtwo's substitute.
+	feedFixtureUntilTurn(t, m, "substitute.txt", 2)
+	bv := m.activeBattle()
+	if bv == nil {
+		t.Fatal("no active battle")
+	}
+	p := bv.state().Find("p1a: Mewtwo")
+	if p == nil || !p.HasSubstitute() {
+		t.Fatal("expected Mewtwo to have an active substitute")
+	}
+
+	// The Pokémon sprite is replaced by the simulator's substitute sprite.
+	if ref := bv.spriteRef(p, false, false); ref.ID != "substitute" {
+		t.Errorf("spriteRef ID = %q, want substitute", ref.ID)
+	}
+	if got := stripANSI(bv.substituteBadge(p)); got != "SUB" {
+		t.Errorf("substituteBadge = %q, want SUB", got)
+	}
+
+	// The badge must survive every layout, including the ones without sprites.
+	for _, width := range []int{40, 60, 100} {
+		m.width = width
+		m.layout = LayoutFor(width)
+		bv.curLayout = m.layout
+		bv.curWidth = width
+		out := stripANSI(bv.render(width, 30, m.layout))
+		if !strings.Contains(out, "SUB") {
+			t.Errorf("width %d: field does not mark the substitute", width)
+		}
+	}
+}
+
 func TestRenderAtEveryLayoutWidth(t *testing.T) {
 	for _, cols := range []int{40, 60, 80, 120, 200} {
 		for _, rows := range []int{14, 30, 50} {

@@ -301,12 +301,29 @@ func (r *Reducer) Apply(ev showdown.Event) {
 		r.log("side", "Side conditions were swapped!")
 	case showdown.BattleVolatileStart:
 		if p := r.State.Find(e.Target); p != nil {
-			p.Volatiles[e.Effect] = true
-			r.log("volatile", "%s: %s", r.display(p), cleanCondition(e.Effect))
+			key := e.Effect
+			if isSubstitute(e.Effect) {
+				// Canonicalise the key so the matching -end is guaranteed to
+				// clear it even if the server changes its casing.
+				key = "Substitute"
+			}
+			p.Volatiles[key] = true
+			if isSubstitute(e.Effect) {
+				r.log("volatile", "%s made a substitute!", r.display(p))
+			} else {
+				r.log("volatile", "%s: %s", r.display(p), cleanCondition(e.Effect))
+			}
 		}
 	case showdown.BattleVolatileEnd:
 		if p := r.State.Find(e.Target); p != nil {
-			delete(p.Volatiles, e.Effect)
+			key := e.Effect
+			if isSubstitute(e.Effect) {
+				key = "Substitute"
+				// A broken substitute is easy to miss otherwise: the log would
+				// just stop mentioning it while the sprite changed back.
+				r.log("volatile", "%s's substitute faded!", r.display(p))
+			}
+			delete(p.Volatiles, key)
 		}
 
 	// ---- items / abilities / formes ----
@@ -408,6 +425,18 @@ func (r *Reducer) applyEffect(e showdown.BattleEffect) {
 	case "miss":
 		r.log("effect", "%s's attack missed!", name(0))
 	case "activate":
+		// A Substitute that absorbs a hit announces itself as the effect,
+		// named after the Pokémon it protects:
+		//   |-activate|p1a: Pikachu|move: Substitute|[damage]
+		// Without this, the line reads as the *Pokémon* activating something.
+		if isSubstitute(arg(0)) || isSubstitute(arg(1)) {
+			if p := r.State.Find(arg(0)); p != nil {
+				r.log("volatile", "%s's substitute took the hit!", r.display(p))
+			} else {
+				r.log("effect", "The substitute took the hit!")
+			}
+			return
+		}
 		r.log("effect", "%s activated.", cleanCondition(arg(0)))
 	case "terastallize":
 		if p := r.State.Find(arg(0)); p != nil {
@@ -847,6 +876,12 @@ func statusName(s string) string {
 
 func isTerrain(c string) bool {
 	return strings.Contains(c, "Terrain")
+}
+
+// isSubstitute reports whether an effect string names Substitute. Protocol
+// effects carry a "move: " prefix in some messages, so normalise first.
+func isSubstitute(effect string) bool {
+	return strings.EqualFold(cleanCondition(effect), "substitute")
 }
 
 // cleanCondition strips protocol prefixes such as "move: " and "ability: ".
