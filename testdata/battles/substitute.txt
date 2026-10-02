@@ -1,0 +1,41 @@
+>battle-gen9substitute-1
+|player|p1|coffee_enjoyer|1|1500
+|player|p2|sleepy_panda|2|1480
+|teamsize|p1|2
+|teamsize|p2|2
+|gametype|singles
+|gen|9
+|tier|[Gen 9] Test
+|rated|
+|clearpoke
+|poke|p1|Mewtwo, L100, M|
+|poke|p1|Gengar, L82, M|
+|poke|p2|Skarmory, L100, M|
+|poke|p2|Dragapult, L82, F|
+|teampreview
+|
+|start
+|switch|p1a: Mewtwo|Mewtwo, L100, M|100/100
+|switch|p2a: Skarmory|Skarmory, L100, M|100/100
+|turn|1
+|
+|request|{"active":[{"moves":[{"move":"Psystrike","id":"psystrike","pp":10,"maxpp":10,"target":"normal"},{"move":"Substitute","id":"substitute","pp":10,"maxpp":10,"target":"self"}]}],"side":{"name":"coffee_enjoyer","id":"p1","pokemon":[{"ident":"p1: Mewtwo","details":"Mewtwo, L100, M","condition":"100/100","active":true},{"ident":"p1: Gengar","details":"Gengar, L82, M","condition":"100/100","active":false}]}}
+|move|p1a: Mewtwo|Substitute|p1a: Mewtwo
+|-start|p1a: Mewtwo|Substitute
+|-damage|p1a: Mewtwo|75/100
+|move|p2a: Skarmory|Brave Bird|p1a: Mewtwo
+|-activate|p1a: Mewtwo|move: Substitute|[damage]
+|upkeep
+|turn|2
+|
+|move|p2a: Skarmory|Brave Bird|p1a: Mewtwo
+|-end|p1a: Mewtwo|Substitute
+|move|p1a: Mewtwo|Psystrike|p2a: Skarmory
+|-damage|p2a: Skarmory|40/100
+|upkeep
+|turn|3
+|
+|move|p1a: Mewtwo|Psystrike|p2a: Skarmory
+|-damage|p2a: Skarmory|0 fnt
+|faint|p2a: Skarmory
+|win|coffee_enjoyer

@@ -224,6 +224,17 @@ Sprites always occupy a fixed cell rectangle per layout mode. A placeholder is
 drawn immediately and replaced when the image arrives, so a slow download never
 reflows the battle UI.
 
+### Substitute is drawn, not silently absorbed
+
+The simulator does not send a substitute's HP, and the Pokémon's own HP does not
+move while the substitute is up, so an unmarked screen makes an absorbed hit look
+like it did nothing at all. Two cues remove the ambiguity: the volatile's
+`-start` / `-end` events set a `SUB` badge on the Pokémon's detail line, and the
+log spells out that the substitute was made, took the hit or faded. With sprites
+enabled the Pokémon sprite is replaced by the simulator's own `substitute` sprite
+(`gen5/substitute.png`, `ani/substitute.gif`), which is the same signal the web
+client gives.
+
 ### Animation
 
 Animated GIFs are decoded into frames with their delays. Animation advances on

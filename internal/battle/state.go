@@ -399,6 +399,21 @@ func (p *Pokemon) BoostTotal() int {
 	return total
 }
 
+// HasSubstitute reports whether this Pokémon is currently behind a Substitute.
+// Substitute is a volatile effect, recorded under the protocol's "Substitute"
+// name; the match is case-insensitive so it tolerates protocol casing.
+func (p *Pokemon) HasSubstitute() bool {
+	if p == nil {
+		return false
+	}
+	for effect := range p.Volatiles {
+		if strings.EqualFold(effect, "substitute") {
+			return true
+		}
+	}
+	return false
+}
+
 // RememberMove records a move this Pokémon has used, ignoring duplicates.
 func (p *Pokemon) RememberMove(name string) {
 	if name == "" {

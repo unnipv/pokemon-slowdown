@@ -300,6 +300,63 @@ func TestSwitchSlots(t *testing.T) {
 	}
 }
 
+func TestSubstituteLogsAreClear(t *testing.T) {
+	r := NewReducer("battle-sub")
+	feed := func(lines ...string) {
+		t.Helper()
+		for _, frame := range showdown.SplitFrames(strings.Join(lines, "\n")) {
+			for _, ev := range showdown.Parse(frame) {
+				r.Apply(ev)
+			}
+		}
+	}
+
+	feed(
+		"|switch|p1a: Mewtwo|Mewtwo, L100, M|100/100",
+		"|switch|p2a: Skarmory|Skarmory, L100, M|100/100",
+		"|turn|1",
+		"|move|p1a: Mewtwo|Substitute|p1a: Mewtwo",
+		"|-start|p1a: Mewtwo|Substitute",
+		"|-damage|p1a: Mewtwo|75/100",
+	)
+	p := r.State.Find("p1a: Mewtwo")
+	if p == nil {
+		t.Fatal("Mewtwo should be tracked")
+	}
+	if !p.HasSubstitute() {
+		t.Fatal("Substitute should be active after -start")
+	}
+	if !hasLogText(r.State, "made a substitute") {
+		t.Errorf("start log is unclear: %#v", r.State.Log)
+	}
+
+	// An unbroken substitute absorbs the hit without touching the Pokémon.
+	feed(
+		"|turn|2",
+		"|move|p2a: Skarmory|Brave Bird|p1a: Mewtwo",
+		"|-activate|p1a: Mewtwo|move: Substitute|[damage]",
+	)
+	if !hasLogText(r.State, "substitute took the hit") {
+		t.Errorf("absorb log is unclear: %#v", r.State.Log)
+	}
+	if !p.HasSubstitute() {
+		t.Error("an unbroken substitute must stay active")
+	}
+
+	// Breaking it clears the volatile and says so.
+	feed(
+		"|turn|3",
+		"|move|p2a: Skarmory|Brave Bird|p1a: Mewtwo",
+		"|-end|p1a: Mewtwo|Substitute",
+	)
+	if p.HasSubstitute() {
+		t.Error("Substitute should be cleared by -end")
+	}
+	if !hasLogText(r.State, "substitute faded") {
+		t.Errorf("fade log is missing: %#v", r.State.Log)
+	}
+}
+
 func TestUnknownEventsDoNotBreakState(t *testing.T) {
 	r := NewReducer("battle-x")
 	r.Debug = true
@@ -333,6 +390,15 @@ func findByName(s *Side, name string) *Pokemon {
 func hasLogKind(s *State, kind string) bool {
 	for _, e := range s.Log {
 		if e.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLogText(s *State, want string) bool {
+	for _, e := range s.Log {
+		if strings.Contains(e.Text, want) {
 			return true
 		}
 	}

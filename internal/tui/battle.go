@@ -236,6 +236,12 @@ func (bv *battleView) wantedSprites(animate bool) []spriteRequest {
 }
 
 func (bv *battleView) spriteRef(p *battle.Pokemon, back, animate bool) sprites.Ref {
+	// A Substitute hides the Pokémon, and the simulator ships its own sprite.
+	// Drawing the decoy instead of the Pokémon is the clearest signal that
+	// incoming hits are landing on the substitute rather than the Pokémon.
+	if p.HasSubstitute() {
+		return sprites.Ref{ID: "substitute", Back: back, Animated: animate}
+	}
 	id := dex.ToID(p.Species)
 	if bv.deps.Dex != nil {
 		if sp, ok := bv.deps.Dex.Species(p.Species); ok {
